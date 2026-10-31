@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import reviewService from '../services/reviewService'
+import { getUserIdentifier } from '../services/userService'
 
 // ---------------------------------------------------------------------------
-// useReviews — fetch reviews for a specific product.
+// useReviews — full CRUD and reaction hook for product reviews.
 // ---------------------------------------------------------------------------
 
 export function useReviews(gunId) {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const currentUserId = getUserIdentifier()
 
   const fetchReviews = useCallback(async () => {
     if (!gunId) {
@@ -19,7 +21,7 @@ export function useReviews(gunId) {
       setLoading(true)
       setError(null)
 
-      const response = await reviewService.getReviews(gunId)
+      const response = await reviewService.getReviews(gunId, currentUserId)
 
       if (response.success) {
         setReviews(response.data || [])
@@ -32,18 +34,76 @@ export function useReviews(gunId) {
     } finally {
       setLoading(false)
     }
-  }, [gunId])
+  }, [gunId, currentUserId])
 
   useEffect(() => {
     fetchReviews()
   }, [fetchReviews])
 
-  return { reviews, loading, error, refetch: fetchReviews }
-}
+  const createReview = async (reviewData) => {
+    const res = await reviewService.createReview(gunId, reviewData)
+    if (res.success) {
+      await fetchReviews()
+      return res.data
+    }
+    return null
+  }
 
-// ---------------------------------------------------------------------------
-// useCreateReview — submit a new review for a product.
-// ---------------------------------------------------------------------------
+  const updateReview = async (reviewId, reviewData) => {
+    const res = await reviewService.updateReview(reviewId, reviewData, gunId)
+    if (res.success) {
+      await fetchReviews()
+      return res.data
+    }
+    return null
+  }
+
+  const deleteReview = async (reviewId) => {
+    const res = await reviewService.deleteReview(reviewId, gunId)
+    if (res.success) {
+      await fetchReviews()
+      return true
+    }
+    return false
+  }
+
+  const toggleReaction = (reviewId, type, initialThumbsUp = 0, initialThumbsDown = 0) => {
+    const updatedReaction = reviewService.toggleReaction(
+      reviewId,
+      type,
+      currentUserId,
+      initialThumbsUp,
+      initialThumbsDown,
+    )
+    if (updatedReaction) {
+      setReviews((prev) =>
+        prev.map((r) =>
+          String(r.id) === String(reviewId)
+            ? {
+                ...r,
+                thumbs_up: updatedReaction.thumbs_up,
+                thumbs_down: updatedReaction.thumbs_down,
+                user_reaction: updatedReaction.user_reaction,
+              }
+            : r,
+        ),
+      )
+    }
+    return updatedReaction
+  }
+
+  return {
+    reviews,
+    loading,
+    error,
+    refetch: fetchReviews,
+    createReview,
+    updateReview,
+    deleteReview,
+    toggleReaction,
+    currentUserId,
+  }
+}
 
 export function useCreateReview() {
   const [loading, setLoading] = useState(false)

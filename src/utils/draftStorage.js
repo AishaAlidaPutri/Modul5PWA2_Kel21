@@ -109,6 +109,42 @@ export const getAllDraftIds = () => {
 }
 
 /**
+ * Return all drafts with structured preview data.
+ */
+export const getAllDrafts = () => {
+  try {
+    const ids = getAllDraftIds()
+    return ids
+      .map((id) => {
+        const data = loadDraft(id)
+        if (!data) return null
+        const formData = data.formData || data
+        const timestamp = getDraftTimestamp(id) || data.savedAt
+
+        return {
+          id,
+          isCreate: id === 'create',
+          name: formData.name || (id === 'create' ? 'New Weapon Draft' : `Weapon Modification #${id.substring(0, 6)}`),
+          type: formData.type || formData.category || 'Pistol',
+          caliber: formData.caliber || '',
+          price: formData.price ?? formData.cook_time ?? 0,
+          description: formData.description || '',
+          imagePreview: data.imagePreview || formData.image_url || null,
+          specsCount: Array.isArray(data.specs) ? data.specs.length : 0,
+          stepsCount: Array.isArray(data.steps) ? data.steps.length : 0,
+          timestamp,
+          timeAgo: formatDraftTime(timestamp),
+          raw: data,
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+  } catch {
+    return []
+  }
+}
+
+/**
  * Remove every gun draft from storage.
  */
 export const clearAllDrafts = () => {
